@@ -1,0 +1,240 @@
+:root{
+  --paper:#FBF8F2;
+  --beige:#EFE6D6;
+  --line:#DCCFB8;
+  --ink:#241E18;
+  --soft:#6B5F52;
+  --wood:#6B4A2F;
+  --seal:#9C3B2E;
+  --brass:#C9A227;
+  --night:#1E1712;
+}
+*{box-sizing:border-box}
+html,body,#root{height:100%}
+body{
+  margin:0; background:var(--night); color:var(--ink);
+  font-family:"Pretendard","Apple SD Gothic Neo","Noto Sans KR","Malgun Gothic",sans-serif;
+  font-size:16px; line-height:1.7; -webkit-font-smoothing:antialiased;
+  -webkit-text-size-adjust:100%;
+}
+.boot{min-height:100vh;background:var(--night)}
+textarea,input{
+  width:100%; padding:12px 14px; border:1px solid var(--line); border-radius:3px;
+  background:#fff; color:var(--ink); font:inherit; font-size:16px; line-height:1.7; resize:vertical;
+}
+textarea:focus,input:focus{outline:2px solid var(--wood); outline-offset:1px}
+button:focus-visible{outline:2px solid var(--brass); outline-offset:2px}
+
+.btn{
+  border:1px solid var(--wood); border-radius:3px; padding:12px 20px;
+  font:inherit; font-weight:700; font-size:15px; cursor:pointer;
+  background:#fff; color:var(--wood); min-height:46px;
+}
+.btn.main{background:var(--wood); color:#FBF8F2}
+.btn.main:hover{background:#583C26}
+.btn.big{font-size:17px; padding:14px 26px}
+.btn.tiny{padding:5px 11px; font-size:13px; min-height:0}
+.row{display:flex; gap:10px; flex-wrap:wrap; margin-top:12px}
+.center{justify-content:center; text-align:center}
+.pad{padding:16px 18px 20px}
+
+/* ── 입장 화면 ── */
+.lobby{min-height:100vh; display:flex; align-items:center; justify-content:center; padding:28px 20px;
+  background:radial-gradient(ellipse at 50% 30%, #4A3728 0%, #1E1712 70%)}
+.lobby-in{max-width:560px; text-align:center; color:#F2E8D5}
+.lobby-eyebrow{font-size:13px; letter-spacing:.16em; color:var(--brass); margin:0 0 18px}
+.lobby-title{font-family:"Nanum Myeongjo",serif; font-size:clamp(44px,12vw,80px);
+  line-height:.98; font-weight:800; margin:0; letter-spacing:-.02em}
+.lobby-title span{display:block; color:var(--brass)}
+.lobby-charge{font-family:"Nanum Myeongjo",serif; font-size:18px; line-height:1.6;
+  margin:26px 0 0; padding-top:22px; border-top:1px solid rgba(201,162,39,.35); color:#E8D9BC}
+.lobby-desc{font-size:15px; color:#C7B79C; margin:18px auto 26px; max-width:44ch; text-align:left}
+.pass{margin-bottom:12px; background:rgba(255,255,255,.08); border-color:rgba(201,162,39,.4); color:#F2E8D5}
+.pass::placeholder{color:#9A8B74}
+.lobby .btn.main{width:100%; background:var(--brass); border-color:var(--brass); color:#241E18}
+.lobby-note{margin-top:16px; font-size:12.5px; color:#9A8B74; line-height:1.7}
+
+/* ── 상단 ── */
+.app{min-height:100vh; display:flex; flex-direction:column; background:var(--night)}
+.top{display:flex; align-items:center; justify-content:space-between; gap:12px;
+  padding:9px 16px; background:#171210; color:#F2E8D5}
+.top-l{display:flex; align-items:baseline; gap:10px; flex-wrap:wrap; min-width:0}
+.phase{font-size:15px; color:var(--brass)}
+.phase-desc{font-size:12.5px; color:#A2937C}
+.clock{font-size:15px; font-variant-numeric:tabular-nums; color:#E8DCC4; white-space:nowrap}
+.clock span{font-size:12px; color:#8A7C68}
+.clock.warn,.clock.over{color:#E0A090}
+.rail{height:2px; background:#2C231C}
+.rail i{display:block; height:2px; background:var(--brass); transition:width 1s linear}
+.banner{margin:0; padding:9px 16px; font-size:14px; background:#3A2C20; color:#EBD9BC;
+  border-left:3px solid var(--brass)}
+.banner.over{background:#452622; border-color:#C2624F}
+
+/* ── 무대 ── */
+.stage{background:#1E1712}
+.court{position:relative; width:100%; aspect-ratio:16/9; overflow:hidden; background:#2A2119}
+.court-bg{position:absolute; inset:0; width:100%; height:100%; object-fit:cover; display:block}
+
+/* 인물. 아래쪽은 잘려서 판사석·증인석·탁자 뒤에 선 것처럼 보입니다. */
+.actor{position:absolute; transform:translateX(-50%); overflow:hidden;
+  display:flex; align-items:flex-start; justify-content:center;
+  transition:filter .35s ease, opacity .35s ease; pointer-events:none}
+.actor img,.actor svg{display:block; width:auto; filter:drop-shadow(0 6px 10px rgba(0,0,0,.45))}
+.actor.dim{filter:brightness(.5) saturate(.65); opacity:.85}
+.actor.defendant{align-items:flex-end}
+.actor.defendant svg{height:100%}
+.actor.defendant.alive svg{filter:drop-shadow(0 0 14px rgba(201,162,39,.45))}
+
+/* 자리 이름표 */
+.tag{position:absolute; top:56.5%; transform:translateX(-50%);
+  font-size:11.5px; font-weight:800; letter-spacing:.02em; white-space:nowrap;
+  padding:2px 9px; border-radius:3px; background:rgba(30,23,18,.86); color:#EBD9BC;
+  border:1px solid rgba(201,162,39,.45)}
+.tag.foe{color:#F0C9C0; border-color:rgba(194,98,79,.5)}
+.tag.wit{top:43%; color:#E4D8C2}
+
+/* 증인 대기실 */
+.waiting{position:absolute; inset:0; background:rgba(22,16,12,.9);
+  display:flex; flex-direction:column; align-items:center; justify-content:center;
+  padding:12px; text-align:center}
+.waiting-head{margin:0; font-family:"Nanum Myeongjo",serif; font-size:20px; color:#C9A227; font-weight:700}
+.waiting-sub{margin:2px 0 10px; font-size:13px; color:#B9A98F}
+.waiting-row{display:flex; gap:8px; align-items:flex-end; justify-content:center;
+  width:100%; overflow-x:auto; padding:0 4px 4px}
+.cand{flex:1 1 0; min-width:104px; max-width:180px; background:none; border:0; padding:6px 4px;
+  color:#EBDFC8; font:inherit; cursor:pointer; border-radius:6px;
+  display:flex; flex-direction:column; align-items:center; gap:2px}
+.cand:hover:not(:disabled),.cand:focus-visible{background:rgba(201,162,39,.15)}
+.cand-art{position:relative; display:block; height:min(22vh,190px)}
+.cand-art img{height:100%; width:auto; display:block;
+  filter:drop-shadow(0 5px 8px rgba(0,0,0,.5)); transition:transform .2s ease}
+.cand:hover:not(:disabled) .cand-art img{transform:translateY(-5px)}
+.cand-art em{position:absolute; inset:auto 0 40% 0; font-style:normal; font-size:11px;
+  background:rgba(20,15,12,.85); color:#B9A98F; padding:3px 0}
+.cand b{font-family:"Nanum Myeongjo",serif; font-size:15px; margin-top:4px}
+.cand-era{font-size:11px; color:#A2937C; line-height:1.4}
+.cand-tags{font-size:11px; color:#C9A227; line-height:1.45}
+.cand.used{opacity:.4; cursor:default}
+
+/* ── 하단 대화부 ── */
+.dock{flex:1; background:var(--paper); border-top:3px solid var(--wood);
+  padding-bottom:24px; overflow-y:auto}
+.bubble{position:relative; margin:16px 16px 0; padding:14px 16px 12px;
+  background:#fff; border:1px solid var(--line); border-radius:4px; border-left-width:4px}
+.bubble.judge{border-left-color:#4A3728}
+.bubble.ai{border-left-color:#7A3B34}
+.bubble.defendant{border-left-color:#8A6644}
+.plate{display:inline-block; font-size:12px; font-weight:800; padding:2px 9px; border-radius:3px;
+  background:var(--beige); color:var(--wood); margin-bottom:6px}
+.bubble.judge .plate{background:#4A3728; color:#F2E8D5}
+.bubble.ai .plate{background:#7A3B34; color:#F7EAE6}
+.bubble.defendant .plate{background:#8A6644; color:#FBF4E6}
+.say{margin:0; font-size:16px; line-height:1.85; white-space:pre-wrap}
+.bubble-act{margin-top:12px}
+.term{border:0; background:none; padding:0; font:inherit; color:var(--seal);
+  border-bottom:1.5px dotted var(--seal); cursor:pointer}
+
+.w-title{font-family:"Nanum Myeongjo",serif; font-size:19px; font-weight:700; margin:4px 0 6px}
+.w-hint{font-size:14px; color:var(--soft); margin:0 0 12px; max-width:52ch; line-height:1.7}
+.fld{display:block; margin-bottom:16px}
+.fld span{display:block; font-weight:600; font-size:15px; margin-bottom:6px}
+
+.loading{display:flex; align-items:center; gap:6px; padding:20px 18px; color:var(--soft); font-size:14.5px}
+.loading i{width:6px; height:6px; border-radius:50%; background:var(--wood); opacity:.3; animation:bl 1.2s infinite}
+.loading i:nth-child(2){animation-delay:.2s}
+.loading i:nth-child(3){animation-delay:.4s; margin-right:6px}
+@keyframes bl{0%,100%{opacity:.25}50%{opacity:1}}
+@media (prefers-reduced-motion:reduce){.loading i{animation:none;opacity:.6}}
+
+.err{display:flex; gap:12px; align-items:center; flex-wrap:wrap; margin:16px 16px 0;
+  padding:11px 14px; background:#F7E9E5; color:#7A2E22; font-size:14.5px; border-radius:3px}
+
+/* 자리 선택 */
+.seats{display:grid; gap:12px}
+.seat{display:flex; flex-direction:column; gap:3px; text-align:left; padding:16px;
+  border:1px solid var(--line); background:#fff; border-radius:4px; cursor:pointer; font:inherit}
+.seat:hover{border-color:var(--wood); background:#FDFAF4}
+.seat b{font-family:"Nanum Myeongjo",serif; font-size:22px}
+.seat-plain{font-size:13px; color:var(--soft)}
+.seat-claim{font-size:15.5px; margin-top:6px}
+.seat-goal{font-size:13px; color:var(--seal); font-weight:700; margin-top:4px}
+
+/* 문답 기록 */
+.log{margin:16px 16px 0; padding:14px 16px; background:#F5F0E5; border-radius:4px}
+.log-head{margin:0 0 10px; font-size:13px; font-weight:800; color:var(--wood)}
+.qa{padding:8px 0; border-top:1px solid var(--line)}
+.qa:first-of-type{border-top:0; padding-top:0}
+.qa .q{margin:0 0 5px; font-size:14px; color:var(--soft)}
+.qa .a{margin:0; font-size:15.5px; line-height:1.8}
+.qa .a b{color:var(--wood); margin-right:6px}
+
+/* 평결 */
+.verdicts{display:grid; gap:9px; margin-bottom:20px}
+.vbtn{display:flex; flex-direction:column; gap:2px; text-align:left; padding:14px;
+  border:1px solid var(--line); background:#fff; border-radius:4px; cursor:pointer; font:inherit}
+.vbtn b{font-family:"Nanum Myeongjo",serif; font-size:19px}
+.vbtn span{font-size:13.5px; color:var(--soft)}
+.vbtn.on{border-color:var(--seal); background:#FDF4F1; box-shadow:inset 3px 0 0 var(--seal)}
+.vbtn.on b{color:var(--seal)}
+
+/* 창 */
+.mask{position:fixed; inset:0; background:rgba(20,15,12,.6); display:flex; align-items:center;
+  justify-content:center; padding:20px; z-index:60}
+.modal{background:#fff; border-radius:4px; padding:24px; max-width:420px; width:100%;
+  border-top:4px solid var(--wood)}
+.modal h3{font-family:"Nanum Myeongjo",serif; font-size:19px; margin:0 0 8px; line-height:1.5}
+.modal p{color:var(--soft); font-size:15px; margin:0 0 20px; line-height:1.75}
+.modal-btns{display:flex; flex-direction:column; gap:8px}
+.modal-btns .btn{width:100%}
+
+/* 기록 화면 */
+.record-page{min-height:100vh; background:var(--paper)}
+.rec-screen{max-width:640px; margin:0 auto; padding:40px 20px 60px; text-align:center}
+.rec-screen h2{font-family:"Nanum Myeongjo",serif; font-size:30px; margin:0 0 8px}
+.rec-time{color:var(--soft); font-size:14px; margin:0 0 30px}
+.rec-compare{display:grid; border:1px solid var(--line); background:#fff; text-align:left}
+.rec-compare > div{padding:18px}
+.rec-compare > div + div{border-top:1px solid var(--line); background:#FDFAF4}
+.rec-compare span{font-size:12.5px; font-weight:700; color:var(--wood)}
+.rec-compare b{display:block; font-family:"Nanum Myeongjo",serif; font-size:20px; margin:6px 0 6px; color:var(--seal)}
+.rec-compare p{margin:0; font-size:15px}
+.rec-note{font-size:13.5px; color:var(--soft); margin:18px 0 26px}
+
+/* 인쇄 */
+.print{display:none}
+@media print{
+  body{background:#fff}
+  .rec-screen,.top,.rail,.stage,.dock,.banner,.mask{display:none !important}
+  .print{display:block; color:#000; font-size:11pt; line-height:1.6}
+  .print h1{font-size:18pt; margin:0 0 4pt; border-bottom:2px solid #000; padding-bottom:6pt}
+  .ptopic{font-size:10pt; margin:6pt 0}
+  .pmeta{display:flex; gap:18pt; font-size:9.5pt; border-bottom:1px solid #999;
+    padding-bottom:8pt; margin-bottom:14pt}
+  .print h2{font-size:12.5pt; margin:15pt 0 6pt; border-bottom:1px solid #666;
+    padding-bottom:3pt; page-break-after:avoid}
+  .prow{display:flex; gap:10pt; margin-bottom:6pt; page-break-inside:avoid}
+  .plabel{width:96pt; flex:none; font-weight:700; font-size:9.5pt}
+  .pval{flex:1; white-space:pre-wrap}
+  .pcompare{display:flex; gap:14pt}
+  .pcompare > div{flex:1; border:1px solid #999; padding:8pt}
+  .pcompare p{margin:4pt 0; white-space:pre-wrap}
+}
+
+@media (min-width:720px){
+  .seats{grid-template-columns:1fr 1fr}
+  .verdicts{grid-template-columns:repeat(3,1fr)}
+  .rec-compare{grid-template-columns:1fr 1fr}
+  .rec-compare > div + div{border-top:0; border-left:1px solid var(--line)}
+  .modal-btns{flex-direction:row}
+  .bubble,.log,.err{margin-left:auto; margin-right:auto; max-width:760px}
+  .pad{max-width:760px; margin:0 auto}
+}
+@media (max-width:719px){
+  .say{font-size:15.5px}
+  .tag{font-size:10px; padding:1px 6px}
+  .cand{min-width:86px}
+  .cand-art{height:min(17vh,140px)}
+  .cand b{font-size:13px}
+  .cand-era,.cand-tags{font-size:10px}
+  .waiting-head{font-size:17px}
+}
