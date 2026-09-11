@@ -71,8 +71,8 @@ button:focus-visible{outline:2px solid var(--brass); outline-offset:2px}
 .banner.over{background:#452622; border-color:#C2624F}
 
 /* ── 무대 ── */
-.stage{background:#1E1712; display:flex; justify-content:center}
-.court{position:relative; width:100%; max-width:86vh; aspect-ratio:16/9; overflow:hidden; background:#2A2119}
+.stage{background:#1E1712}
+.court{position:relative; width:100%; aspect-ratio:16/9; overflow:hidden; background:#2A2119}
 .court-bg{position:absolute; inset:0; width:100%; height:100%; object-fit:cover; display:block}
 
 /* 인물. 아래쪽은 잘려서 판사석·증인석·탁자 뒤에 선 것처럼 보입니다. */
@@ -238,3 +238,12 @@ button:focus-visible{outline:2px solid var(--brass); outline-offset:2px}
   .cand-era,.cand-tags{font-size:10px}
   .waiting-head{font-size:17px}
 }
+
+/* ── 오간 말 목록 ── */
+.talk{display:flex; flex-direction:column; gap:14px; padding-top:16px}
+.bubble.me{border-left-color:var(--seal)}
+.bubble.wit{border-left-color:#8A6A3B}
+.bubble.me .plate{background:var(--seal); color:#FBF4F1}
+.bubble.wit .plate{background:#8A6A3B; color:#FBF4E6}
+.row.extras{border-top:1px solid var(--line); margin-top:16px; padding-top:14px}
+.row.extras .btn{font-size:14px; padding:9px 15px; min-height:40px}
