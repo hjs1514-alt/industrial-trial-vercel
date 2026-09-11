@@ -130,6 +130,14 @@ export default function App() {
     aiRebut([], first);
   };
 
+  /* 상대편 응답이 실패했을 때 마지막 내 발언으로 다시 시도 */
+  const retryRebut = () => {
+    const last = [...s.turns].reverse().find((t) => t.who === "me");
+    if (!last) return;
+    setErr(null);
+    aiRebut(s.turns.slice(0, s.turns.lastIndexOf(last)), last.text);
+  };
+
   /* 내 반박 제출 */
   const submitRebut = () => {
     const t = draft.trim();
@@ -301,29 +309,34 @@ export default function App() {
       </div>
 
       <section className="dock">
-        {/* 판사 */}
-        {judgeTalking && (
-          <Bubble who="판사" cls="judge" text={script[line]} onTerm={setTerm}>
-            <button className="btn main" onClick={() => {
-              if (line < script.length - 1) { setLine(line + 1); return; }
-              if (s.phase === "OPEN") {
-                // 피고인이 이름을 답합니다.
-                set((o) => ({
-                  ...o,
-                  turns: [{ who: "defendant", text: `${DEFENDANT_LINES.name} ${DEFENDANT_LINES.origin}` }],
-                  phase: "IDENTIFY",
-                }));
-                return;
-              }
-              if (s.phase === "IDENTIFY") { set({ phase: "SEAT" }); return; }
-            }}>다음</button>
-          </Bubble>
-        )}
-
-        {/* 오간 말 */}
-        {!judgeTalking && s.turns.length > 0 && (
+        {(s.turns.length > 0 || script) && (
           <div className="talk">
             {s.turns.map((t, i) => <Turn key={i} t={t} side={s.side} onTerm={setTerm} />)}
+
+            {/* 판사. 대사가 끝나도 마지막 줄은 화면에 남습니다. */}
+            {script && (
+              <Bubble who="판사" cls="judge"
+                text={script[Math.min(line, script.length - 1)]} onTerm={setTerm}>
+                {judgeTalking && (
+                  <button className="btn main" onClick={() => {
+                    // 아직 남은 줄이 있으면 다음 줄로
+                    if (line < script.length - 1) { setLine(line + 1); return; }
+                    // 개정 마지막 줄에서는 피고인이 이름을 답합니다
+                    if (s.phase === "OPEN") {
+                      set((o) => ({
+                        ...o,
+                        turns: [{ who: "defendant", text: `${DEFENDANT_LINES.name} ${DEFENDANT_LINES.origin}` }],
+                        phase: "IDENTIFY",
+                      }));
+                      return;
+                    }
+                    // 그 밖에는 대사를 닫고 아래 입력부를 엽니다
+                    setLine(line + 1);
+                  }}>다음</button>
+                )}
+              </Bubble>
+            )}
+
             {busy && <Loading label={busy} />}
             <div ref={tail} />
           </div>
@@ -336,7 +349,7 @@ export default function App() {
 
         {!judgeTalking && !busy && (
           <Panel {...{ s, set, draft, setDraft, setErr, canWitness, myTurn,
-            submitOpening, submitRebut, askWitness, crossWitness, runClosing }} />
+            submitOpening, submitRebut, askWitness, crossWitness, runClosing, retryRebut }} />
         )}
       </section>
 
@@ -359,7 +372,7 @@ function Turn({ t, side, onTerm }) {
 }
 
 function Panel({ s, set, draft, setDraft, setErr, canWitness, myTurn,
-  submitOpening, submitRebut, askWitness, crossWitness, runClosing }) {
+  submitOpening, submitRebut, askWitness, crossWitness, runClosing, retryRebut }) {
 
   switch (s.phase) {
     case "SEAT":
@@ -408,7 +421,10 @@ function Panel({ s, set, draft, setDraft, setErr, canWitness, myTurn,
               </div>
             </>
           ) : (
-            <p className="w-hint">상대편의 말을 기다리는 중입니다.</p>
+            <div className="center">
+              <p className="w-hint">상대편의 말을 받지 못했습니다.</p>
+              <button className="btn main" onClick={retryRebut}>다시 시도</button>
+            </div>
           )}
           <div className="row extras">
             {canWitness && (
@@ -425,6 +441,17 @@ function Panel({ s, set, draft, setDraft, setErr, canWitness, myTurn,
       return (
         <div className="pad center">
           <button className="btn main big" onClick={() => set({ phase: "SEAT" })}>자리 고르러 가기</button>
+        </div>
+      );
+
+    case "W_CROSS":
+      return (
+        <div className="pad center">
+          <p className="w-hint">상대편의 질문을 받지 못했습니다.</p>
+          <div className="row center">
+            <button className="btn main" onClick={crossWitness}>다시 시도</button>
+            <button className="btn" onClick={() => set({ phase: "W_DONE" })}>건너뛰기</button>
+          </div>
         </div>
       );
 
