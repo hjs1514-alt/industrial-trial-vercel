@@ -103,7 +103,7 @@ export default async function handler(req, res) {
 async function callOpenAI(messages, attempt = 0, opts = { tokenKey: "max_completion_tokens", temp: true }) {
   const payload = { model: MODEL, messages };
   payload[opts.tokenKey] = 1000;
-  if (opts.temp) payload.temperature = 0.9;
+  if (opts.temp) payload.temperature = 0.7;  // 논리를 잇는 말이라 너무 높이지 않습니다
 
   const r = await fetch(ENDPOINT, {
     method: "POST",
