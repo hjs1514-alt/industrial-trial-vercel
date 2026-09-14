@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect, useRef } from "react";
 import { WITNESSES, witnessById, GLOSSARY, JUDGE } from "./data.js";
 
 /* ============================================================
@@ -33,12 +33,22 @@ function Loading({ label }) {
 }
 
 /* 법정 그림 아래쪽에 자막처럼 얹는 대화창. 한 번에 한 사람의 말만 보입니다.
-   cue: { who 이름표, cls 색, text 말, next? 다음으로 넘기는 함수 }
-   busy: 상대편·증인이 말을 고르는 동안 보일 글 */
+   cue: { who 이름표, cls 색, text 말, next? 다음으로 넘기는 함수,
+          streaming? 지금 글자가 흘러들어오는 중, interrupted? 중간에 끊긴 말 }
+   busy: 상대편·증인이 말을 고르는 동안 보일 글.
+   글자가 오기 전에는 busy 를 자리표시로 보이고, 오기 시작하면 그 자리를 글로 채웁니다. */
 function Caption({ cue, busy, onTerm, logCount, logOpen, onToggleLog }) {
+  const sayRef = useRef(null);
+  const flowing = Boolean(cue?.streaming && cue.text);
+  /* 흘러들어오는 글이 상자를 넘치면 끝이 보이도록 따라 내려갑니다. */
+  useEffect(() => {
+    if (flowing && sayRef.current) sayRef.current.scrollTop = sayRef.current.scrollHeight;
+  }, [flowing, cue?.text]);
+
   if (!cue && !busy) return null;
+  const waiting = Boolean(cue?.streaming && !cue.text);
   return (
-    <div className={`caption ${cue?.cls || ""}`} aria-live="polite">
+    <div className={`caption ${cue?.cls || ""}`} aria-live="polite" aria-busy={Boolean(busy)}>
       {cue && (
         <div className="caption-head">
           <span className="plate">{cue.who}</span>
@@ -49,11 +59,17 @@ function Caption({ cue, busy, onTerm, logCount, logOpen, onToggleLog }) {
           )}
         </div>
       )}
-      {cue && <p className="say"><Glossed text={cue.text} onTerm={onTerm} /></p>}
-      {(cue?.next || busy) && (
+      {cue && (
+        <p className={`say ${waiting ? "wait" : ""}`} ref={sayRef}>
+          {waiting ? busy : <Glossed text={cue.text} onTerm={onTerm} />}
+          {flowing && <i className="cursor" aria-hidden="true" />}
+        </p>
+      )}
+      {(cue?.next || (busy && !flowing) || cue?.interrupted) && (
         <div className="caption-act">
           {cue?.next && <button className="btn main" onClick={cue.next}>다음</button>}
-          {busy && <Loading label={busy} />}
+          {busy && !flowing && <Loading label={waiting ? "" : busy} />}
+          {cue?.interrupted && <span className="caption-note">여기서 응답이 끊겼습니다</span>}
         </div>
       )}
     </div>

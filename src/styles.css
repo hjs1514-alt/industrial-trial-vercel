@@ -122,6 +122,11 @@ button:focus-visible{outline:2px solid var(--brass); outline-offset:2px}
 .caption-act .btn.main:hover{background:#D9B23A}
 .caption .loading{padding:0; color:#C7B79C; font-size:13.5px}
 .caption .loading i{background:var(--brass)}
+/* 스트리밍: 글자가 오기 전 자리표시, 오는 동안 깜박이는 커서, 끊겼을 때 표시 */
+.caption .say.wait{color:#C7B79C; font-style:italic}
+.caption .cursor{display:inline-block; width:2px; height:1em; margin-left:2px; vertical-align:-.15em;
+  background:var(--brass); animation:bl 1s infinite}
+.caption-note{font-size:12.5px; color:#E0A090}
 
 /* 증인 대기실 */
 .waiting{position:absolute; inset:0; background:rgba(22,16,12,.9);
@@ -179,6 +184,8 @@ button:focus-visible{outline:2px solid var(--brass); outline-offset:2px}
 
 .err{display:flex; gap:12px; align-items:center; flex-wrap:wrap; margin:16px 16px 0;
   padding:11px 14px; background:#F7E9E5; color:#7A2E22; font-size:14.5px; border-radius:3px}
+.err span{flex:1 1 240px; white-space:pre-line}
+.err .btn.tiny.main{background:var(--seal); border-color:var(--seal)}
 
 /* 자리 선택 */
 .seats{display:grid; gap:12px}

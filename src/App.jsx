@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import Courtroom, { Glossed } from "./Courtroom.jsx";
-import { askTwice } from "./ai.js";
+import { askWithRetry } from "./ai.js";
 import {
   WITNESSES, witnessById, SEATS, other, JUDGE, DEFENDANT_LINES,
   GLOSSARY, PHASE_INFO, VERDICTS, TOTAL_SEC, WARN_SEC, TOTAL_MIN,
@@ -23,6 +23,7 @@ const blank = () => ({
   witnesses: [],     // 부른 증인 id 목록
   wid: null,         // 지금 증인석에 선 증인
   wAsked: 0,         // 이 증인에게 내가 물은 횟수
+  wFrom: 0,          // 이 증인이 선 뒤 오간 말이 시작되는 자리
   verdict: null,
   reasons: ["", ""],
   elapsed: 0,
@@ -43,6 +44,9 @@ export default function App() {
   const [term, setTerm] = useState(null);
   const [pass, setPass] = useState("");
   const [showLog, setShowLog] = useState(false);
+  const [stream, setStream] = useState(null);   // 지금 흘러들어오는 AI 의 말 { who, wid, text, interrupted? }
+  const [retry, setRetry] = useState(null);     // 실패한 요청을 같은 내용으로 다시 보내는 함수
+  const abortRef = useRef(null);
   const running = useRef(false);
   const tail = useRef(null);
   const panelRef = useRef(null);
@@ -53,7 +57,6 @@ export default function App() {
     if (nx.phase !== o.phase || nx.wid !== o.wid) { nx.line = 0; nx.base = nx.turns.length; }
     return nx;
   }), []);
-  const push = useCallback((t) => set((o) => ({ ...o, turns: [...o.turns, t] })), [set]);
 
   /* ── 저장과 타이머 ── */
   useEffect(() => {
@@ -121,9 +124,14 @@ export default function App() {
     }
     // 그 밖에는 대사를 닫고 아래 입력부를 엽니다
     set({ line: s.line + 1 });
+    // 마지막 말 단계에서는 판사 말이 끝난 뒤에야 상대편·피고인의 말을 받습니다
+    if (s.phase === "CLOSING" && s.turns.length <= s.base) startClosing();
   };
 
   const cue = (() => {
+    if (stream)
+      return { ...speaker({ who: stream.who, wid: stream.wid, text: stream.text }, s.side),
+        streaming: !stream.interrupted, interrupted: Boolean(stream.interrupted) };
     if (queueAt >= 0 && (!playing || queueAt < s.base))
       return { ...speaker(s.turns[queueAt], s.side), next: () => set({ ack: queueAt + 1 }) };
     if (playing) return { who: "판사", cls: "judge", text: script[s.line], next: advanceJudge };
@@ -135,13 +143,60 @@ export default function App() {
 
   /* 입력부가 열려 있다는 것은 지금까지의 말을 다 읽었다는 뜻입니다. */
   const panelOpen = !playing && !busy && queueAt < 0;
+  useEffect(() => {
+    setStream((st) => (st?.interrupted ? null : st));
+    setRetry(null);
+  }, [s.phase]);
   useEffect(() => { if (panelOpen && s.ack !== n) set({ ack: n }); }, [panelOpen, n, s.ack, set]);
   useEffect(() => {
     if (panelOpen) panelRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
   }, [panelOpen, s.phase]);
 
-  /* ── AI 호출 ── */
-  const call = (payload) => askTwice({ side: s.side, ...payload }, pass);
+  /* ── AI 호출 ──
+     AI 한 사람의 말을 스트리밍으로 받아 자막에 바로 흘립니다.
+     성공하면 완성된 글을 돌려주고, 실패하면 null 을 돌려줍니다.
+     끊기기 전까지 받은 글은 자막에 남기고(interrupted), 기록에는 넣지 않습니다. */
+  const speak = async ({ who, wid = null, label, payload }) => {
+    setErr(null);
+    setRetry(null);
+    setStream({ who, wid, text: "" });
+    setBusy(label);
+    const ctrl = new AbortController();
+    abortRef.current = ctrl;
+    try {
+      const text = await askWithRetry({ side: s.side, ...payload }, pass, {
+        signal: ctrl.signal,
+        onChunk: (_, all) => setStream((st) => (st ? { ...st, text: all } : st)),
+        onWait: (e) => setBusy(e.status === 429
+          ? "현재 여러 명이 동시에 재판에 참여하고 있습니다. 잠시 후 다시 시도합니다."
+          : "연결이 고르지 않습니다. 잠시 후 다시 시도합니다."),
+      });
+      setStream(null);
+      return text;
+    } catch (e) {
+      if (ctrl.signal.aborted) { setStream(null); return null; }
+      setStream((st) => (st && st.text ? { ...st, interrupted: true } : null));
+      setErr(e.partial
+        ? "AI 응답이 중간에 중단되었습니다. 다시 시도하면 이 답변을 새로 생성합니다."
+        : e.retryable ? "AI 응답이 지연되고 있습니다. 잠시 후 다시 시도해 주세요." : e.message);
+      return null;
+    } finally {
+      setBusy(null);
+      abortRef.current = null;
+    }
+  };
+
+  /* 버튼 한 번 = 요청 한 번. 응답 중에는 같은 동작을 다시 시작하지 않습니다. */
+  const guarded = (fn) => async (...args) => {
+    if (running.current) return;
+    running.current = true;
+    try { await fn(...args); }
+    finally { running.current = false; }
+  };
+
+  /* 완성된 말을 기록에 넣습니다. 자막으로 이미 다 본 말이므로 읽은 것으로 칩니다. */
+  const pushRead = (t, extra = {}) =>
+    set((o) => ({ ...o, turns: [...o.turns, t], ack: o.turns.length + 1, ...extra }));
 
   /* 토론 이력을 AI 대화 형식으로 */
   const history = (turns) => turns.map((t) => {
@@ -150,6 +205,18 @@ export default function App() {
     if (t.who === "defendant") return { role: "user", text: `[피고인 산업혁명] ${t.text}` };
     return { role: "user", text: t.text };
   });
+
+  /* 상대편 반박에 보내는 이력: 첫 주장(입장·주장·까닭)은 늘, 그 뒤는 최근 8마디만.
+     증인 기록 전체를 매번 붙이지 않습니다. */
+  const rebutHistory = (turns) => {
+    if (turns.length <= 9) return history(turns);
+    return history([turns[0], ...turns.slice(-8)]);
+  };
+
+  /* 증인에게 보내는 이력: 이 증인이 증인석에 선 뒤 오간 문답만.
+     증인의 말은 assistant, 묻는 쪽(나·상대편)은 user. */
+  const witnessHistory = (turns, from) => turns.slice(from).map((t) =>
+    t.who === "witness" ? { role: "assistant", text: t.text } : { role: "user", text: t.text });
 
   const recordText = () => {
     const seat = SEATS[s.side];
@@ -164,16 +231,14 @@ export default function App() {
   };
 
   /* AI가 한 차례 반박 */
-  const aiRebut = async (turns, latest) => {
-    if (running.current) return;
-    running.current = true;
-    setBusy("상대편이 반박을 준비합니다");
-    try {
-      const text = await call({ role: "ai_rebut", question: latest, history: history(turns) });
-      set((o) => ({ ...o, turns: [...o.turns, { who: "ai", text }], phase: "DEBATE" }));
-    } catch (e) { setErr(e.message); }
-    finally { setBusy(null); running.current = false; }
-  };
+  const aiRebut = guarded(async (turns, latest) => {
+    const text = await speak({
+      who: "ai", label: "상대편이 반박을 준비합니다",
+      payload: { role: "ai_rebut", question: latest, history: rebutHistory(turns) },
+    });
+    if (text == null) { setRetry(() => () => aiRebut(turns, latest)); return; }
+    pushRead({ who: "ai", text }, { phase: "DEBATE" });
+  });
 
   /* 첫 주장 제출 */
   const submitOpening = () => {
@@ -205,72 +270,82 @@ export default function App() {
     aiRebut(s.turns, t);
   };
 
-  /* 증인 부르기 */
+  /* 증인 부르기. wFrom 은 이 증인이 선 뒤 오간 말이 어디서 시작하는지. */
   const callWitness = (id) =>
-    set((o) => ({ ...o, witnesses: [...o.witnesses, id], wid: id, wAsked: 0, phase: "W_ASK" }));
+    set((o) => ({ ...o, witnesses: [...o.witnesses, id], wid: id, wAsked: 0, wFrom: o.turns.length, phase: "W_ASK" }));
 
-  const askWitness = async () => {
-    const q = draft.trim();
-    if (q.length < 4) return setErr("질문을 적어 주세요.");
+  /* 증인에게 묻기. again 은 실패한 질문을 다시 보낼 때 — 질문을 다시 기록하거나 횟수를 세지 않습니다. */
+  const askWitness = guarded(async (again = null) => {
+    const q = (again ?? draft).trim();
+    if (q.length < 4) { setErr("질문을 적어 주세요."); return; }
     setErr(null);
-    setDraft("");
+    if (again == null) {
+      setDraft("");
+      set((o) => ({ ...o, turns: [...o.turns, { who: "me", text: q }], wAsked: o.wAsked + 1 }));
+    }
     const wt = witnessById(s.wid);
-    const turns = [...s.turns, { who: "me", text: q }];
-    set({ turns, wAsked: s.wAsked + 1 });
-    setBusy(`${wt.name}이(가) 증언합니다`);
-    try {
-      const text = await call({
-        role: "witness", witnessId: s.wid, question: q,
-        history: history(s.turns.filter((t) => t.who === "witness" && t.wid === s.wid)),
-      });
-      push({ who: "witness", text, wid: s.wid });
-    } catch (e) { setErr(e.message); }
-    finally { setBusy(null); }
-  };
+    const prior = again == null ? s.turns : s.turns.slice(0, -1);   // 이번 질문은 question 으로 따로 보냅니다
+    const text = await speak({
+      who: "witness", wid: s.wid, label: `${wt.name}이(가) 증언합니다`,
+      payload: { role: "witness", witnessId: s.wid, question: q, history: witnessHistory(prior, s.wFrom) },
+    });
+    if (text == null) { setRetry(() => () => askWitness(q)); return; }
+    pushRead({ who: "witness", text, wid: s.wid });
+  });
 
-  /* 반대편이 같은 증인에게 한 가지 */
-  const crossWitness = async () => {
-    if (running.current) return;
-    running.current = true;
+  /* 반대편이 같은 증인에게 한 가지 묻고, 증인이 답합니다. 두 번의 호출을 이어서. */
+  const crossAnswer = async (q) => {
+    const wt = witnessById(s.wid);
+    const a = await speak({
+      who: "witness", wid: s.wid, label: `${wt.name}이(가) 증언합니다`,
+      payload: { role: "witness", witnessId: s.wid, question: q, history: witnessHistory(s.turns, s.wFrom) },
+    });
+    if (a == null) { setRetry(() => () => retryCrossAnswer(q)); return; }
+    pushRead({ who: "witness", text: a, wid: s.wid }, { phase: "W_DONE" });
+  };
+  const retryCrossAnswer = guarded(crossAnswer);
+
+  const crossWitness = guarded(async () => {
     set({ phase: "W_CROSS" });
-    const wt = witnessById(s.wid);
-    setBusy("상대편이 증인에게 물을 것을 고릅니다");
-    try {
-      const log = s.turns
-        .filter((t) => t.who === "witness" && t.wid === s.wid || t.who === "me")
-        .slice(-6).map((t) => `${t.who === "witness" ? "증언" : "질문"}: ${t.text}`).join("\n");
-      const q = (await call({ role: "ai_cross", witnessId: s.wid, witnessLog: log }))
-        .replace(/^["「]|["」]$/g, "");
-      push({ who: "ai", text: q });
-      setBusy(`${wt.name}이(가) 증언합니다`);
-      const a = await call({
-        role: "witness", witnessId: s.wid, question: q,
-        history: history(s.turns.filter((t) => t.who === "witness" && t.wid === s.wid)),
-      });
-      set((o) => ({ ...o, turns: [...o.turns, { who: "witness", text: a, wid: o.wid }], phase: "W_DONE" }));
-    } catch (e) { setErr(e.message); }
-    finally { setBusy(null); running.current = false; }
-  };
+    const log = s.turns.slice(s.wFrom)
+      .slice(-6).map((t) => `${t.who === "witness" ? "증언" : "질문"}: ${t.text}`).join("\n");
+    const raw = await speak({
+      who: "ai", label: "상대편이 증인에게 물을 것을 고릅니다",
+      payload: { role: "ai_cross", witnessId: s.wid, witnessLog: log },
+    });
+    if (raw == null) { setRetry(() => () => crossWitness()); return; }
+    const q = raw.replace(/^["「]|["」]$/g, "");
+    pushRead({ who: "ai", text: q });
+    await crossAnswer(q);
+  });
 
-  /* 마지막 말 */
-  const runClosing = async () => {
-    if (running.current) return;
-    running.current = true;
-    set({ phase: "CLOSING" });
-    setBusy("상대편이 마지막 말을 정리합니다");
-    try {
-      const rec = recordText();
-      const a = await call({ role: "ai_closing", record: rec });
-      push({ who: "ai", text: a });
-      setBusy("피고인이 마지막 말을 고릅니다");
-      const d = await call({
+  /* 마지막 말. 「재판 마치기」를 누르면 판사가 먼저 말하고,
+     그 대사가 끝날 때(advanceJudge) 상대편과 피고인의 말을 차례로 받습니다. */
+  const runClosing = () => set({ phase: "CLOSING" });
+
+  const closingDefendant = async (rec) => {
+    const d = await speak({
+      who: "defendant", label: "피고인이 마지막 말을 고릅니다",
+      payload: {
         role: "defendant",
         question: `재판이 끝나갑니다. 아래가 오늘 법정에서 오간 전부입니다.\n\n${rec}\n\n피고인으로서 마지막으로 하고 싶은 말을 하십시오. 오늘 나온 이야기 가운데 마음에 걸린 것을 짚으며 말하십시오.`,
-      });
-      push({ who: "defendant", text: d });
-    } catch (e) { setErr(e.message); }
-    finally { setBusy(null); running.current = false; }
+      },
+    });
+    if (d == null) { setRetry(() => () => retryClosingDefendant(rec)); return; }
+    pushRead({ who: "defendant", text: d });
   };
+  const retryClosingDefendant = guarded(closingDefendant);
+
+  const startClosing = guarded(async () => {
+    const rec = recordText();
+    const a = await speak({
+      who: "ai", label: "상대편이 마지막 말을 정리합니다",
+      payload: { role: "ai_closing", record: rec },
+    });
+    if (a == null) { setRetry(() => () => startClosing()); return; }
+    pushRead({ who: "ai", text: a });
+    await closingDefendant(rec);
+  });
 
   /* ── 조명 ── 자막에 나온 사람을 밝힙니다. */
   const actor = (() => {
@@ -387,12 +462,13 @@ export default function App() {
 
         {err && (
           <div className="err"><span>{err}</span>
-            <button className="btn tiny" onClick={() => setErr(null)}>닫기</button></div>
+            {retry && !busy && <button className="btn tiny main" onClick={retry}>다시 시도</button>}
+            <button className="btn tiny" onClick={() => { setErr(null); setRetry(null); }}>닫기</button></div>
         )}
 
         {panelOpen && (
           <div ref={panelRef}>
-            <Panel {...{ s, set, draft, setDraft, setErr, canWitness, myTurn,
+            <Panel {...{ s, set, draft, setDraft, setErr, canWitness, myTurn, retry,
               submitOpening, submitRebut, askWitness, crossWitness, runClosing, retryRebut }} />
           </div>
         )}
@@ -422,7 +498,7 @@ function Turn({ t, side, onTerm }) {
   return <Bubble who={m.who} cls={m.cls} text={m.text} onTerm={onTerm} />;
 }
 
-function Panel({ s, set, draft, setDraft, setErr, canWitness, myTurn,
+function Panel({ s, set, draft, setDraft, setErr, canWitness, myTurn, retry,
   submitOpening, submitRebut, askWitness, crossWitness, runClosing, retryRebut }) {
 
   switch (s.phase) {
@@ -474,7 +550,7 @@ function Panel({ s, set, draft, setDraft, setErr, canWitness, myTurn,
           ) : (
             <div className="center">
               <p className="w-hint">상대편의 말을 받지 못했습니다.</p>
-              <button className="btn main" onClick={retryRebut}>다시 시도</button>
+              {!retry && <button className="btn main" onClick={retryRebut}>다시 시도</button>}
             </div>
           )}
           <div className="row extras">
@@ -500,7 +576,7 @@ function Panel({ s, set, draft, setDraft, setErr, canWitness, myTurn,
         <div className="pad center">
           <p className="w-hint">상대편의 질문을 받지 못했습니다.</p>
           <div className="row center">
-            <button className="btn main" onClick={crossWitness}>다시 시도</button>
+            {!retry && <button className="btn main" onClick={crossWitness}>다시 시도</button>}
             <button className="btn" onClick={() => set({ phase: "W_DONE" })}>건너뛰기</button>
           </div>
         </div>
@@ -522,7 +598,7 @@ function Panel({ s, set, draft, setDraft, setErr, canWitness, myTurn,
             <>
               <textarea rows={2} value={draft} placeholder="예: 하루에 몇 시간을 일했고, 그때 몸은 어땠습니까?"
                 onChange={(e) => setDraft(e.target.value)} />
-              <div className="row"><button className="btn main" onClick={askWitness}>질문하기</button></div>
+              <div className="row"><button className="btn main" onClick={() => askWitness()}>질문하기</button></div>
             </>
           )}
           {s.wAsked > 0 && (
