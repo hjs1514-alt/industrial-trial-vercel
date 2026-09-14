@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
-import Courtroom from "./Courtroom.jsx";
+import Courtroom, { Glossed } from "./Courtroom.jsx";
 import { askTwice } from "./ai.js";
 import {
   WITNESSES, witnessById, SEATS, other, JUDGE, DEFENDANT_LINES,
@@ -28,6 +28,9 @@ const blank = () => ({
   elapsed: 0,
   finishedAt: null,
   date: null,
+  line: 0,           // 판사 대사에서 지금 몇 번째 줄인가
+  base: 0,           // 이 단계에 들어올 때 오간 말의 수
+  ack: 0,            // 여기까지의 말은 다 읽었다
 });
 
 export default function App() {
@@ -39,11 +42,17 @@ export default function App() {
   const [draft, setDraft] = useState("");
   const [term, setTerm] = useState(null);
   const [pass, setPass] = useState("");
-  const [line, setLine] = useState(0);
+  const [showLog, setShowLog] = useState(false);
   const running = useRef(false);
   const tail = useRef(null);
+  const panelRef = useRef(null);
 
-  const set = useCallback((p) => setS((o) => ({ ...o, ...(typeof p === "function" ? p(o) : p) })), []);
+  /* 단계(또는 증인)가 바뀌면 판사 대사는 첫 줄부터, 기준점은 그 순간의 말 수로 맞춥니다. */
+  const set = useCallback((p) => setS((o) => {
+    const nx = { ...o, ...(typeof p === "function" ? p(o) : p) };
+    if (nx.phase !== o.phase || nx.wid !== o.wid) { nx.line = 0; nx.base = nx.turns.length; }
+    return nx;
+  }), []);
   const push = useCallback((t) => set((o) => ({ ...o, turns: [...o.turns, t] })), [set]);
 
   /* ── 저장과 타이머 ── */
@@ -67,22 +76,69 @@ export default function App() {
     return () => clearInterval(t);
   }, [s.phase]);
 
-  useEffect(() => { tail.current?.scrollIntoView({ behavior: "smooth", block: "end" }); },
-    [s.turns.length, s.phase, busy]);
+  useEffect(() => {
+    if (showLog) tail.current?.scrollIntoView({ behavior: "smooth", block: "end" });
+  }, [s.turns.length, showLog]);
 
   const overtime = s.elapsed >= TOTAL_SEC;
   const warning = s.elapsed >= WARN_SEC && !overtime;
   const info = PHASE_INFO[s.phase] || PHASE_INFO.LOBBY;
 
-  /* ── 판사 대사 ── */
+  /* ── 판사 대사 ──
+     증인 신청 때의 대사는 증인 대기실 화면에 바로 적혀 있어서 여기서는 뺍니다. */
   const SCRIPT = {
     OPEN: JUDGE.open, IDENTIFY: JUDGE.identified, SEAT: JUDGE.seat, OPENING: JUDGE.opening,
-    W_PICK: JUDGE.witnessCall, W_ASK: JUDGE.witnessAsk,
+    W_ASK: JUDGE.witnessAsk,
     CLOSING: JUDGE.closing, VERDICT: JUDGE.verdict, SENTENCE: JUDGE.sentence,
   };
   const script = SCRIPT[s.phase] || null;
-  useEffect(() => { setLine(0); }, [s.phase, s.wid]);
-  const judgeTalking = Boolean(script) && line < script.length;
+  const playing = Boolean(script) && s.line < script.length;
+
+  /* ── 대화창에 보일 한 줄 ──
+     법정 그림 위의 자막에는 한 사람의 말만 보입니다. 순서는
+     ① 아직 읽지 않은 말 → ② 판사 대사 → ③ 가장 최근 말(또는 판사의 마지막 말)입니다.
+     내가 한 말은 따로 읽을 필요가 없어서 건너뜁니다. */
+  const n = s.turns.length;
+  const queueAt = (() => {
+    let a = s.ack;
+    while (a < n - 1 && s.turns[a].who === "me") a++;
+    if (a >= n) return -1;                        // 다 읽었음
+    if (a < n - 1) return a;                      // 뒤에 아직 읽지 않은 말이 있음
+    if (playing && a < s.base) return a;          // 판사가 말하기 전에 먼저 읽어야 할 말
+    return -1;
+  })();
+
+  const advanceJudge = () => {
+    // 아직 남은 줄이 있으면 다음 줄로
+    if (s.line < script.length - 1) { set({ line: s.line + 1 }); return; }
+    // 개정 마지막 줄에서는 피고인이 이름을 답합니다
+    if (s.phase === "OPEN") {
+      set({
+        turns: [{ who: "defendant", text: `${DEFENDANT_LINES.name} ${DEFENDANT_LINES.origin}` }],
+        phase: "IDENTIFY",
+      });
+      return;
+    }
+    // 그 밖에는 대사를 닫고 아래 입력부를 엽니다
+    set({ line: s.line + 1 });
+  };
+
+  const cue = (() => {
+    if (queueAt >= 0 && (!playing || queueAt < s.base))
+      return { ...speaker(s.turns[queueAt], s.side), next: () => set({ ack: queueAt + 1 }) };
+    if (playing) return { who: "판사", cls: "judge", text: script[s.line], next: advanceJudge };
+    if (script && n <= s.base)
+      return { who: "판사", cls: "judge", text: script[script.length - 1] };
+    if (n > 0) return speaker(s.turns[n - 1], s.side);
+    return null;
+  })();
+
+  /* 입력부가 열려 있다는 것은 지금까지의 말을 다 읽었다는 뜻입니다. */
+  const panelOpen = !playing && !busy && queueAt < 0;
+  useEffect(() => { if (panelOpen && s.ack !== n) set({ ack: n }); }, [panelOpen, n, s.ack, set]);
+  useEffect(() => {
+    if (panelOpen) panelRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  }, [panelOpen, s.phase]);
 
   /* ── AI 호출 ── */
   const call = (payload) => askTwice({ side: s.side, ...payload }, pass);
@@ -216,18 +272,14 @@ export default function App() {
     finally { setBusy(null); running.current = false; }
   };
 
-  /* ── 조명 ── */
+  /* ── 조명 ── 자막에 나온 사람을 밝힙니다. */
   const actor = (() => {
-    if (judgeTalking) return "judge";
+    if (playing && cue?.cls === "judge") return "judge";
     if (busy?.includes("증언")) return "witness";
     if (busy?.includes("피고인")) return "defendant";
     if (busy?.includes("상대편")) return "ai";
-    const last = s.turns[s.turns.length - 1];
+    if (cue?.turn) return cue.turn.who;
     if (s.phase === "W_ASK" || s.phase === "W_CROSS" || s.phase === "W_DONE") return "witness";
-    if (s.phase === "OPENING" || s.phase === "SEAT" || s.phase === "VERDICT") return "me";
-    if (last?.who === "ai") return "ai";
-    if (last?.who === "defendant") return "defendant";
-    if (last?.who === "witness") return "witness";
     return "me";
   })();
 
@@ -241,7 +293,13 @@ export default function App() {
           <Modal title="진행하던 재판이 있습니다."
             sub={`${PHASE_INFO[resume.phase]?.label} · ${longTime(resume.elapsed || 0)} 지남`}
             actions={[
-              { label: "이어서 하기", main: true, onClick: () => { setS(resume); setResume(null); } },
+              { label: "이어서 하기", main: true,
+                onClick: () => {
+                  // 예전 저장본에는 읽은 자리가 없으니 지금까지의 말은 다 읽은 것으로 칩니다.
+                  const t = resume.turns || [];
+                  setS({ ...blank(), ...resume, ack: resume.ack ?? t.length });
+                  setResume(null);
+                } },
               { label: "처음부터 새로", onClick: () => { localStorage.removeItem(STORE); setResume(null); } },
             ]} />
         )}
@@ -305,39 +363,24 @@ export default function App() {
           usedWitnesses={s.witnesses}
           picking={s.phase === "W_PICK"}
           onCallWitness={callWitness}
+          cue={cue}
+          busy={busy}
+          onTerm={setTerm}
+          logCount={n}
+          logOpen={showLog}
+          onToggleLog={() => setShowLog((v) => !v)}
         />
       </div>
 
       <section className="dock">
-        {(s.turns.length > 0 || script) && (
+        {/* 지난 말 전체. 자막에는 한 줄만 보이므로 펼쳐서 다시 읽을 수 있게 둡니다. */}
+        {showLog && n > 0 && (
           <div className="talk">
+            <p className="talk-head">
+              <span>지금까지 오간 말</span>
+              <button className="btn tiny" onClick={() => setShowLog(false)}>접기</button>
+            </p>
             {s.turns.map((t, i) => <Turn key={i} t={t} side={s.side} onTerm={setTerm} />)}
-
-            {/* 판사. 대사가 끝나도 마지막 줄은 화면에 남습니다. */}
-            {script && (
-              <Bubble who="판사" cls="judge"
-                text={script[Math.min(line, script.length - 1)]} onTerm={setTerm}>
-                {judgeTalking && (
-                  <button className="btn main" onClick={() => {
-                    // 아직 남은 줄이 있으면 다음 줄로
-                    if (line < script.length - 1) { setLine(line + 1); return; }
-                    // 개정 마지막 줄에서는 피고인이 이름을 답합니다
-                    if (s.phase === "OPEN") {
-                      set((o) => ({
-                        ...o,
-                        turns: [{ who: "defendant", text: `${DEFENDANT_LINES.name} ${DEFENDANT_LINES.origin}` }],
-                        phase: "IDENTIFY",
-                      }));
-                      return;
-                    }
-                    // 그 밖에는 대사를 닫고 아래 입력부를 엽니다
-                    setLine(line + 1);
-                  }}>다음</button>
-                )}
-              </Bubble>
-            )}
-
-            {busy && <Loading label={busy} />}
             <div ref={tail} />
           </div>
         )}
@@ -347,9 +390,11 @@ export default function App() {
             <button className="btn tiny" onClick={() => setErr(null)}>닫기</button></div>
         )}
 
-        {!judgeTalking && !busy && (
-          <Panel {...{ s, set, draft, setDraft, setErr, canWitness, myTurn,
-            submitOpening, submitRebut, askWitness, crossWitness, runClosing, retryRebut }} />
+        {panelOpen && (
+          <div ref={panelRef}>
+            <Panel {...{ s, set, draft, setDraft, setErr, canWitness, myTurn,
+              submitOpening, submitRebut, askWitness, crossWitness, runClosing, retryRebut }} />
+          </div>
         )}
       </section>
 
@@ -361,14 +406,20 @@ export default function App() {
 
 /* ============================================================ */
 
-function Turn({ t, side, onTerm }) {
+/* 한 마디를 이름표·색·본문으로 풀어 줍니다. 자막과 지난 말 목록이 같이 씁니다. */
+function speaker(t, side) {
   const map = {
     me: { who: `${SEATS[side]?.title} · 나`, cls: "me" },
     ai: { who: `${SEATS[other(side)]?.title} · 상대편`, cls: "ai" },
     witness: { who: `증인 · ${t.wid ? witnessById(t.wid).name : ""}`, cls: "wit" },
     defendant: { who: "피고인 · 산업혁명", cls: "defendant" },
   }[t.who];
-  return <Bubble who={map.who} cls={map.cls} text={t.text} onTerm={onTerm} />;
+  return { ...map, text: t.text, turn: t };
+}
+
+function Turn({ t, side, onTerm }) {
+  const m = speaker(t, side);
+  return <Bubble who={m.who} cls={m.cls} text={m.text} onTerm={onTerm} />;
 }
 
 function Panel({ s, set, draft, setDraft, setErr, canWitness, myTurn,
@@ -544,10 +595,6 @@ function Verdict({ s, set, setErr }) {
 
 /* ── 조각 ── */
 
-function Loading({ label }) {
-  return <div className="loading"><i /><i /><i /><span>{label}</span></div>;
-}
-
 function Modal({ title, sub, actions }) {
   return (
     <div className="mask"><div className="modal">
@@ -559,14 +606,6 @@ function Modal({ title, sub, actions }) {
       </div>
     </div></div>
   );
-}
-
-function Glossed({ text, onTerm }) {
-  const keys = Object.keys(GLOSSARY).sort((a, b) => b.length - a.length);
-  const re = new RegExp(`(${keys.join("|")})`, "g");
-  return <>{String(text || "").split(re).map((p, i) =>
-    GLOSSARY[p] ? <button key={i} className="term" onClick={() => onTerm(p)}>{p}</button>
-      : <React.Fragment key={i}>{p}</React.Fragment>)}</>;
 }
 
 function Bubble({ who, cls, text, onTerm, children }) {

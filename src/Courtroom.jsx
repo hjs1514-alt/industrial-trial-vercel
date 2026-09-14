@@ -1,9 +1,9 @@
 import React from "react";
-import { WITNESSES, witnessById } from "./data.js";
+import { WITNESSES, witnessById, GLOSSARY, JUDGE } from "./data.js";
 
 /* ============================================================
    법정 무대.
-   배경 그림 위에 인물 그림을 얹습니다.
+   배경 그림 위에 인물 그림을 얹고, 아래쪽에 자막처럼 대화창을 겹칩니다.
    인물마다 '가림선'이 있어 판사석·증인석·탁자 뒤에 선 것처럼 보입니다.
    숫자는 모두 화면 대비 비율이라 어떤 크기에서도 같은 자리에 섭니다.
    ============================================================ */
@@ -18,6 +18,47 @@ const MARK = {
   right: { cx: 0.8, headY: 0.25, h: 0.61, clipY: 0.545 },
   defendant: { cx: 0.5, headY: 0.3, h: 0.4, clipY: 0.72 },
 };
+
+/* 어려운 낱말은 눌러서 뜻을 볼 수 있게 감쌉니다. */
+export function Glossed({ text, onTerm }) {
+  const keys = Object.keys(GLOSSARY).sort((a, b) => b.length - a.length);
+  const re = new RegExp(`(${keys.join("|")})`, "g");
+  return <>{String(text || "").split(re).map((p, i) =>
+    GLOSSARY[p] ? <button key={i} className="term" onClick={() => onTerm(p)}>{p}</button>
+      : <React.Fragment key={i}>{p}</React.Fragment>)}</>;
+}
+
+function Loading({ label }) {
+  return <div className="loading"><i /><i /><i /><span>{label}</span></div>;
+}
+
+/* 법정 그림 아래쪽에 자막처럼 얹는 대화창. 한 번에 한 사람의 말만 보입니다.
+   cue: { who 이름표, cls 색, text 말, next? 다음으로 넘기는 함수 }
+   busy: 상대편·증인이 말을 고르는 동안 보일 글 */
+function Caption({ cue, busy, onTerm, logCount, logOpen, onToggleLog }) {
+  if (!cue && !busy) return null;
+  return (
+    <div className={`caption ${cue?.cls || ""}`} aria-live="polite">
+      {cue && (
+        <div className="caption-head">
+          <span className="plate">{cue.who}</span>
+          {logCount > 0 && (
+            <button className="caption-log" onClick={onToggleLog} aria-expanded={logOpen}>
+              지난 말 {logCount} {logOpen ? "▴" : "▾"}
+            </button>
+          )}
+        </div>
+      )}
+      {cue && <p className="say"><Glossed text={cue.text} onTerm={onTerm} /></p>}
+      {(cue?.next || busy) && (
+        <div className="caption-act">
+          {cue?.next && <button className="btn main" onClick={cue.next}>다음</button>}
+          {busy && <Loading label={busy} />}
+        </div>
+      )}
+    </div>
+  );
+}
 
 function Actor({ img, mark, dim, label }) {
   return (
@@ -92,6 +133,12 @@ export default function Courtroom({
   usedWitnesses = [],
   picking = false,
   onCallWitness,
+  cue = null,
+  busy = null,
+  onTerm = () => {},
+  logCount = 0,
+  logOpen = false,
+  onToggleLog = () => {},
 }) {
   const meLeft = side !== "prosecution";
   const meMark = meLeft ? MARK.left : MARK.right;
@@ -109,6 +156,7 @@ export default function Courtroom({
       <Actor img="lawyer-a" mark={meMark} dim={off("me")} label="나" />
       <Actor img="lawyer-b" mark={aiMark} dim={off("ai")} label="상대편" />
 
+      {/* 이름표는 머리 위에 띄웁니다. 아래쪽은 대화창이 차지합니다. */}
       <span className="tag" style={{ left: `${meMark.cx * 100}%` }}>
         {side === "prosecution" ? "검사" : "변호인"} · 나
       </span>
@@ -121,10 +169,17 @@ export default function Courtroom({
         </span>
       )}
 
+      {!picking && (
+        <Caption cue={cue} busy={busy} onTerm={onTerm}
+          logCount={logCount} logOpen={logOpen} onToggleLog={onToggleLog} />
+      )}
+
       {picking && (
         <div className="waiting">
           <p className="waiting-head">증인 대기실</p>
-          <p className="waiting-sub">부르고 싶은 사람을 고르세요</p>
+          <p className="waiting-sub">
+            <span className="plate">판사</span>{JUDGE.witnessCall.join(" ")}
+          </p>
           <div className="waiting-row">
             {WITNESSES.map((wt) => {
               const used = usedWitnesses.includes(wt.id);

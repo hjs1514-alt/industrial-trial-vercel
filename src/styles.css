@@ -74,7 +74,7 @@ button:focus-visible{outline:2px solid var(--brass); outline-offset:2px}
 .stage{background:#1E1712; display:flex; justify-content:center}
 /* 16:9 를 정확히 지키면서 높이만 제한합니다.
    인물 좌표가 화면 높이 비율이라 비율을 깨면 배경과 어긋납니다. */
-.court{position:relative; width:min(100%, 880px, calc(44vh * 16 / 9));
+.court{position:relative; width:min(100%, 960px, calc(58vh * 16 / 9));
   aspect-ratio:16/9; margin:0 auto; overflow:hidden; background:#2A2119}
 .court-bg{position:absolute; inset:0; width:100%; height:100%; object-fit:cover; display:block}
 
@@ -88,13 +88,40 @@ button:focus-visible{outline:2px solid var(--brass); outline-offset:2px}
 .actor.defendant svg{height:100%}
 .actor.defendant.alive svg{filter:drop-shadow(0 0 14px rgba(201,162,39,.45))}
 
-/* 자리 이름표 */
-.tag{position:absolute; top:56.5%; transform:translateX(-50%);
+/* 자리 이름표. 머리 위에 띄웁니다. 아래쪽은 자막 대화창이 차지합니다. */
+.tag{position:absolute; top:24%; transform:translate(-50%,-100%);
   font-size:11.5px; font-weight:800; letter-spacing:.02em; white-space:nowrap;
   padding:2px 9px; border-radius:3px; background:rgba(30,23,18,.86); color:#EBD9BC;
   border:1px solid rgba(201,162,39,.45)}
 .tag.foe{color:#F0C9C0; border-color:rgba(194,98,79,.5)}
-.tag.wit{top:43%; color:#E4D8C2}
+.tag.wit{top:19.5%; color:#E4D8C2}
+
+/* ── 자막 대화창 ── 법정 그림 아래쪽에 반투명하게 겹칩니다. */
+.caption{position:absolute; left:2.5%; right:2.5%; bottom:2.5%; max-height:46%; z-index:2;
+  display:flex; flex-direction:column; padding:9px 14px 11px;
+  background:rgba(22,15,11,.74); -webkit-backdrop-filter:blur(4px); backdrop-filter:blur(4px);
+  border:1px solid rgba(201,162,39,.4); border-radius:4px; color:#F4EAD8;
+  box-shadow:0 10px 26px rgba(0,0,0,.4)}
+.caption-head{display:flex; align-items:center; justify-content:space-between; gap:8px; flex:none}
+.caption .plate{margin:0; background:rgba(201,162,39,.92); color:#241E18}
+.caption.judge .plate{background:#5B4331; color:#F2E8D5}
+.caption.me .plate{background:var(--seal); color:#FBF4F1}
+.caption.ai .plate{background:#7A3B34; color:#F7EAE6}
+.caption.wit .plate{background:#8A6A3B; color:#FBF4E6}
+.caption.defendant .plate{background:#8A6644; color:#FBF4E6}
+.caption .say{flex:1 1 auto; min-height:0; overflow-y:auto; overscroll-behavior:contain;
+  margin-top:5px; font-size:15.5px; line-height:1.75; color:#F4EAD8;
+  text-shadow:0 1px 2px rgba(0,0,0,.5)}
+.caption .term{color:#F0C27A; border-bottom-color:#F0C27A}
+.caption-log{flex:none; border:0; background:none; padding:2px 4px; font:inherit; font-size:12px;
+  color:#C7B79C; cursor:pointer; white-space:nowrap}
+.caption-log:hover{color:#F0C27A}
+.caption-act{display:flex; align-items:center; gap:12px; flex-wrap:wrap; margin-top:8px; flex:none}
+.caption-act .btn.main{background:var(--brass); border-color:var(--brass); color:#241E18;
+  min-height:38px; padding:7px 18px}
+.caption-act .btn.main:hover{background:#D9B23A}
+.caption .loading{padding:0; color:#C7B79C; font-size:13.5px}
+.caption .loading i{background:var(--brass)}
 
 /* 증인 대기실 */
 .waiting{position:absolute; inset:0; background:rgba(22,16,12,.9);
@@ -102,6 +129,7 @@ button:focus-visible{outline:2px solid var(--brass); outline-offset:2px}
   padding:12px; text-align:center}
 .waiting-head{margin:0; font-family:"Nanum Myeongjo",serif; font-size:20px; color:#C9A227; font-weight:700}
 .waiting-sub{margin:2px 0 10px; font-size:13px; color:#B9A98F}
+.waiting-sub .plate{margin:0 6px 0 0; font-size:11px; background:#5B4331; color:#F2E8D5}
 .waiting-row{display:flex; gap:8px; align-items:flex-end; justify-content:center;
   width:100%; overflow-x:auto; padding:0 4px 4px}
 .cand{flex:1 1 0; min-width:104px; max-width:180px; background:none; border:0; padding:6px 4px;
@@ -241,10 +269,17 @@ button:focus-visible{outline:2px solid var(--brass); outline-offset:2px}
   .cand b{font-size:13px}
   .cand-era,.cand-tags{font-size:10px}
   .waiting-head{font-size:17px}
+  .caption{left:2%; right:2%; bottom:2%; max-height:64%; padding:7px 10px 9px}
+  .caption .plate{font-size:11px}
+  .caption .say{font-size:14px; line-height:1.6}
+  .caption-act .btn.main{min-height:34px; padding:5px 14px; font-size:14px}
+  .caption .loading{font-size:12.5px}
 }
 
-/* ── 오간 말 목록 ── */
+/* ── 오간 말 목록 (자막의 「지난 말」을 눌렀을 때) ── */
 .talk{display:flex; flex-direction:column; gap:14px; padding-top:16px}
+.talk-head{display:flex; align-items:center; justify-content:space-between; width:min(100% - 32px, 760px); margin:0 auto;
+  font-size:13px; font-weight:800; color:var(--wood)}
 .bubble.me{border-left-color:var(--seal)}
 .bubble.wit{border-left-color:#8A6A3B}
 .bubble.me .plate{background:var(--seal); color:#FBF4F1}
