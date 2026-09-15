@@ -74,7 +74,7 @@ button:focus-visible{outline:2px solid var(--brass); outline-offset:2px}
 .stage{background:#1E1712; display:flex; justify-content:center}
 /* 16:9 를 정확히 지키면서 높이만 제한합니다.
    인물 좌표가 화면 높이 비율이라 비율을 깨면 배경과 어긋납니다. */
-.court{position:relative; width:min(100%, 960px, calc(58vh * 16 / 9));
+.court{position:relative; width:min(100%, 1180px, calc(66vh * 16 / 9));
   aspect-ratio:16/9; margin:0 auto; overflow:hidden; background:#2A2119}
 .court-bg{position:absolute; inset:0; width:100%; height:100%; object-fit:cover; display:block}
 
@@ -97,30 +97,30 @@ button:focus-visible{outline:2px solid var(--brass); outline-offset:2px}
 .tag.wit{top:19.5%; color:#E4D8C2}
 
 /* ── 자막 대화창 ── 법정 그림 아래쪽에 반투명하게 겹칩니다. */
-.caption{position:absolute; left:2.5%; right:2.5%; bottom:2.5%; max-height:46%; z-index:2;
-  display:flex; flex-direction:column; padding:9px 14px 11px;
+.caption{position:absolute; left:2.5%; right:2.5%; bottom:2.5%; max-height:52%; z-index:2;
+  display:flex; flex-direction:column; padding:14px 22px 16px;
   background:rgba(22,15,11,.74); -webkit-backdrop-filter:blur(4px); backdrop-filter:blur(4px);
   border:1px solid rgba(201,162,39,.4); border-radius:4px; color:#F4EAD8;
   box-shadow:0 10px 26px rgba(0,0,0,.4)}
 .caption-head{display:flex; align-items:center; justify-content:space-between; gap:8px; flex:none}
-.caption .plate{margin:0; background:rgba(201,162,39,.92); color:#241E18}
+.caption .plate{margin:0; font-size:13.5px; padding:3px 11px; background:rgba(201,162,39,.92); color:#241E18}
 .caption.judge .plate{background:#5B4331; color:#F2E8D5}
 .caption.me .plate{background:var(--seal); color:#FBF4F1}
 .caption.ai .plate{background:#7A3B34; color:#F7EAE6}
 .caption.wit .plate{background:#8A6A3B; color:#FBF4E6}
 .caption.defendant .plate{background:#8A6644; color:#FBF4E6}
 .caption .say{flex:1 1 auto; min-height:0; overflow-y:auto; overscroll-behavior:contain;
-  margin-top:5px; font-size:15.5px; line-height:1.75; color:#F4EAD8;
+  margin-top:9px; font-size:20px; line-height:1.85; color:#F4EAD8;
   text-shadow:0 1px 2px rgba(0,0,0,.5)}
 .caption .term{color:#F0C27A; border-bottom-color:#F0C27A}
-.caption-log{flex:none; border:0; background:none; padding:2px 4px; font:inherit; font-size:12px;
+.caption-log{flex:none; border:0; background:none; padding:3px 6px; font:inherit; font-size:13.5px;
   color:#C7B79C; cursor:pointer; white-space:nowrap}
 .caption-log:hover{color:#F0C27A}
-.caption-act{display:flex; align-items:center; gap:12px; flex-wrap:wrap; margin-top:8px; flex:none}
+.caption-act{display:flex; align-items:center; gap:12px; flex-wrap:wrap; margin-top:13px; flex:none}
 .caption-act .btn.main{background:var(--brass); border-color:var(--brass); color:#241E18;
-  min-height:38px; padding:7px 18px}
+  min-height:46px; padding:11px 26px; font-size:16px}
 .caption-act .btn.main:hover{background:#D9B23A}
-.caption .loading{padding:0; color:#C7B79C; font-size:13.5px}
+.caption .loading{padding:0; color:#C7B79C; font-size:15px}
 .caption .loading i{background:var(--brass)}
 /* 스트리밍: 글자가 오기 전 자리표시, 오는 동안 깜박이는 커서, 끊겼을 때 표시 */
 .caption .say.wait{color:#C7B79C; font-style:italic}
@@ -276,11 +276,12 @@ button:focus-visible{outline:2px solid var(--brass); outline-offset:2px}
   .cand b{font-size:13px}
   .cand-era,.cand-tags{font-size:10px}
   .waiting-head{font-size:17px}
-  .caption{left:2%; right:2%; bottom:2%; max-height:64%; padding:7px 10px 9px}
-  .caption .plate{font-size:11px}
-  .caption .say{font-size:14px; line-height:1.6}
-  .caption-act .btn.main{min-height:34px; padding:5px 14px; font-size:14px}
-  .caption .loading{font-size:12.5px}
+  .caption{left:2%; right:2%; bottom:2%; max-height:66%; padding:10px 13px 12px}
+  .caption .plate{font-size:12px; padding:2px 9px}
+  .caption .say{font-size:16.5px; line-height:1.7; margin-top:7px}
+  .caption-act .btn.main{min-height:42px; padding:9px 20px; font-size:15px}
+  .caption .loading{font-size:13.5px}
+  .caption-log{font-size:12.5px}
 }
 
 /* ── 오간 말 목록 (자막의 「지난 말」을 눌렀을 때) ── */
