@@ -17,7 +17,7 @@ import { buildSystem, buildPrompt, ROLES, WITNESS_PERSONA } from "./_prompts.js"
 
 const MODEL = process.env.OPENAI_MODEL || "gpt-5.6-terra";
 const KEY = process.env.OPENAI_API_KEY;
-const PASSCODE = process.env.TRIAL_PASSCODE || "";
+const PASSCODE = process.env.TRIAL_PASSCODE || "20269745";
 const ENDPOINT = "https://api.openai.com/v1/chat/completions";
 
 /* 폭주를 막는 브레이크.
@@ -64,7 +64,7 @@ export async function POST(request) {
     return json(429, { error: BUSY_MSG });
   }
 
-  if (PASSCODE && body.passcode !== PASSCODE) {
+  if (clip(body.passcode, 64).trim() !== PASSCODE) {
     return json(401, { error: "입장 암호가 올바르지 않습니다." });
   }
 

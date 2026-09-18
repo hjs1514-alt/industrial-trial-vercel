@@ -51,6 +51,8 @@ button:focus-visible{outline:2px solid var(--brass); outline-offset:2px}
 .lobby-desc{font-size:15px; color:#C7B79C; margin:18px auto 26px; max-width:44ch; text-align:left}
 .pass{margin-bottom:12px; background:rgba(255,255,255,.08); border-color:rgba(201,162,39,.4); color:#F2E8D5}
 .pass::placeholder{color:#9A8B74}
+.pass.bad{border-color:var(--seal); background:rgba(155,42,42,.16)}
+.pass-err{margin:-4px 0 12px; font-size:13px; color:#E8A5A5; text-align:left}
 .lobby .btn.main{width:100%; background:var(--brass); border-color:var(--brass); color:#241E18}
 .lobby-note{margin-top:16px; font-size:12.5px; color:#9A8B74; line-height:1.7}
 

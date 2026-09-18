@@ -9,6 +9,11 @@ import {
 const STORE = "trial-v3";
 const MAX_WITNESS = 2;
 
+/* 입장 암호. 이 값과 정확히 같아야만 법정에 들어갈 수 있습니다.
+   서버(api/trial.js)도 같은 값을 다시 확인하므로, 이 화면을 건너뛴다고
+   AI 응답을 받을 수 있는 것은 아닙니다. */
+const PASSCODE = "20269745";
+
 const mmss = (s) => `${String(Math.floor(s / 60)).padStart(2, "0")}:${String(Math.floor(s % 60)).padStart(2, "0")}`;
 const longTime = (s) => `${Math.floor(s / 60)}분 ${Math.floor(s % 60)}초`;
 
@@ -43,6 +48,7 @@ export default function App() {
   const [draft, setDraft] = useState("");
   const [term, setTerm] = useState(null);
   const [pass, setPass] = useState("");
+  const [passErr, setPassErr] = useState("");
   const [showLog, setShowLog] = useState(false);
   const [stream, setStream] = useState(null);   // 지금 흘러들어오는 AI 의 말 { who, wid, text, interrupted? }
   const [retry, setRetry] = useState(null);     // 실패한 요청을 같은 내용으로 다시 보내는 함수
@@ -164,7 +170,7 @@ export default function App() {
     const ctrl = new AbortController();
     abortRef.current = ctrl;
     try {
-      const text = await askWithRetry({ side: s.side, ...payload }, pass, {
+      const text = await askWithRetry({ side: s.side, ...payload }, pass.trim(), {
         signal: ctrl.signal,
         onChunk: (_, all) => setStream((st) => (st ? { ...st, text: all } : st)),
         onWait: (e) => setBusy(e.status === 429
@@ -362,6 +368,16 @@ export default function App() {
 
   /* ── 입장 화면 ── */
   if (s.phase === "LOBBY") {
+    /* 암호가 정확히 맞을 때만 다음 동작을 실행합니다. */
+    const guard = (go) => () => {
+      if (pass.trim() !== PASSCODE) {
+        setPassErr("입장 암호가 올바르지 않습니다. 선생님이 알려 주신 번호를 다시 확인하세요.");
+        return;
+      }
+      setPassErr("");
+      go();
+    };
+    const enter = guard(() => set({ phase: "OPEN", date: new Date().toLocaleDateString("ko-KR") }));
     return (
       <div className="lobby">
         {resume && (
@@ -369,12 +385,12 @@ export default function App() {
             sub={`${PHASE_INFO[resume.phase]?.label} · ${longTime(resume.elapsed || 0)} 지남`}
             actions={[
               { label: "이어서 하기", main: true,
-                onClick: () => {
+                onClick: guard(() => {
                   // 예전 저장본에는 읽은 자리가 없으니 지금까지의 말은 다 읽은 것으로 칩니다.
                   const t = resume.turns || [];
                   setS({ ...blank(), ...resume, ack: resume.ack ?? t.length });
                   setResume(null);
-                } },
+                }) },
               { label: "처음부터 새로", onClick: () => { localStorage.removeItem(STORE); setResume(null); } },
             ]} />
         )}
@@ -389,10 +405,14 @@ export default function App() {
             상대편과 주장을 주고받습니다. 그 시대를 살았던 사람을 증인으로 부를 수도 있습니다.
             마지막에는 스스로 판단을 내립니다.
           </p>
-          <input className="pass" placeholder="입장 암호 (선생님이 알려 주신 경우에만)"
-            value={pass} onChange={(e) => setPass(e.target.value)} />
-          <button className="btn main big"
-            onClick={() => set({ phase: "OPEN", date: new Date().toLocaleDateString("ko-KR") })}>
+          <input className={`pass ${passErr ? "bad" : ""}`} type="password"
+            inputMode="numeric" autoComplete="off"
+            placeholder="입장 암호 (선생님이 알려 주신 번호)"
+            value={pass}
+            onChange={(e) => { setPass(e.target.value); if (passErr) setPassErr(""); }}
+            onKeyDown={(e) => { if (e.key === "Enter") enter(); }} />
+          {passErr && <p className="pass-err">{passErr}</p>}
+          <button className="btn main big" onClick={enter}>
             법정에 들어가기
           </button>
           <p className="lobby-note">
